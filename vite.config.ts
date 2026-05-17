@@ -16,8 +16,8 @@ export default defineConfig({
         name: 'OrderAI - Sales Manager',
         short_name: 'OrderAI',
         description: 'Natural language sales order manager',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#ffffff',
+        background_color: '#f8fafc',
         display: 'standalone',
         icons: [
           {

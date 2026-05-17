@@ -76,8 +76,8 @@ const OrderInput: React.FC<OrderInputProps> = ({ apiUrl, password }) => {
       )}
 
       <div className="glass p-6 flex flex-col gap-4">
-        <h3 className="font-semibold text-sm text-indigo-400 uppercase tracking-wider">Quick Tips</h3>
-        <ul className="text-sm flex flex-col gap-2 text-slate-400">
+        <h3 className="font-semibold text-sm uppercase tracking-wider text-[var(--primary-color)]">Quick Tips</h3>
+        <ul className="text-sm flex flex-col gap-2 text-[var(--text-muted)]">
           <li>• Mention item, quantity, and price.</li>
           <li>• Use "k" for thousands (e.g., 50k).</li>
           <li>• "3 bánh mì 60k" will calculate 20k per unit.</li>

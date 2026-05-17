@@ -3,8 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>order-with-ai</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>OrderAI - Natural Language Sales Manager</title>
+    <script>
+      (function() {
+        const saved = localStorage.getItem('app_theme') || 'light';
+        const root = document.documentElement;
+        if (saved === 'system') {
+          const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          root.setAttribute('data-theme', dark ? 'dark' : 'light');
+        } else {
+          root.setAttribute('data-theme', saved);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

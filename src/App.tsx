@@ -1,22 +1,309 @@
-import { useState, useCallback } from 'react';
-import { PlusCircle, BarChart3, Settings, LogOut, AlertTriangle } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { PlusCircle, BarChart3, LogOut, AlertTriangle, Sun, Moon, Monitor } from 'lucide-react';
 import type { Order, RemoteData } from './types';
-import { notAsked, loading, success, failure } from './types';
+import { notAsked, loading, success, failure, fold } from './types';
 import AuthBarrier from './components/AuthBarrier';
 import OrderInput from './components/OrderInput';
 import ManagementDashboard from './components/ManagementDashboard';
+
+type Theme = 'light' | 'dark' | 'system';
+type ActiveTab = 'overview' | 'invoices' | 'add' | 'expenses' | 'settings';
 
 const isValidUrl = (url: string) => {
   if (!url) return true;
   return url.trim().startsWith('https://script.google.com/') && url.includes('/macros/s/') && url.includes('/exec');
 };
 
+// ---- INVOICES VIEW (HOÁ ĐƠN) ------------------------------------------------
+interface InvoicesViewProps {
+  orders: RemoteData<Error, Order[]>;
+  onRefresh: () => void;
+}
+
+const InvoicesView: React.FC<InvoicesViewProps> = ({ orders, onRefresh }) => {
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 8;
+
+  const isExpense = (o: Order): boolean => {
+    const note = (o.raw_note || '').toLowerCase();
+    const item = (o.item_name || '').toLowerCase();
+    return (
+      note.includes('chi ') ||
+      note.includes('mua ') ||
+      note.includes('nhập ') ||
+      note.includes('phí ') ||
+      item.includes('chi phí') ||
+      item.includes('mua ') ||
+      o.total_price < 0
+    );
+  };
+
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  return fold(
+    orders,
+    () => <div className="text-center py-8">Chưa có dữ liệu.</div>,
+    () => (
+      <div className="animate-pulse flex flex-col gap-4 py-8">
+        {[1, 2, 3].map(i => <div key={i} className="skeleton h-20 w-full" />)}
+      </div>
+    ),
+    (err) => <div className="text-center text-red-500 py-8">Lỗi: {err.message}</div>,
+    (data) => {
+      // Filter out expenses and search
+      const filtered = data
+        .filter(o => !isExpense(o))
+        .filter(o => 
+          (o.customer_name || '').toLowerCase().includes(search.toLowerCase()) ||
+          (o.item_name || '').toLowerCase().includes(search.toLowerCase())
+        )
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      const totalPages = Math.ceil(filtered.length / itemsPerPage);
+      const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
+      return (
+        <div className="flex flex-col gap-4 animate-fade-in pb-16">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-0.5">
+              <h2 className="text-xl font-bold">Danh sách hoá đơn</h2>
+              <p className="text-xs text-slate-400">{filtered.length} hoá đơn bán lẻ</p>
+            </div>
+            <button onClick={onRefresh} className="btn-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+            </button>
+          </div>
+
+          <input 
+            type="text"
+            placeholder="Tìm theo khách hàng hoặc tên hàng..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="w-full"
+          />
+
+          <div className="flex flex-col gap-3">
+            {paginated.length === 0 ? (
+              <div className="glass p-8 text-center text-slate-400">Không tìm thấy hoá đơn nào.</div>
+            ) : (
+              paginated.map((invoice, idx) => (
+                <div key={idx} className="glass p-4 flex flex-col gap-2 hover:border-blue-500/20 transition-all">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">
+                        {invoice.customer_name || 'Khách vãng lai'}
+                      </span>
+                      <p className="text-xs text-slate-400">{formatDate(invoice.timestamp)}</p>
+                    </div>
+                    <span className="font-bold text-blue-500">
+                      {formatCurrency(invoice.total_price)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <span>{invoice.item_name}</span>
+                    <span>x{invoice.quantity}</span>
+                  </div>
+                  {invoice.raw_note && (
+                    <p className="text-xs italic text-slate-400 mt-1 truncate">
+                      "{invoice.raw_note}"
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-3 mt-4">
+              <button 
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+                className="btn-ghost px-3 py-1 text-sm min-h-0"
+              >
+                Trước
+              </button>
+              <span className="text-sm text-slate-400">Trang {page} / {totalPages}</span>
+              <button 
+                disabled={page === totalPages}
+                onClick={() => setPage(p => p + 1)}
+                className="btn-ghost px-3 py-1 text-sm min-h-0"
+              >
+                Sau
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+  );
+};
+
+// ---- EXPENSES VIEW (CHI PHÍ) ------------------------------------------------
+interface ExpensesViewProps {
+  orders: RemoteData<Error, Order[]>;
+  onRefresh: () => void;
+}
+
+const ExpensesView: React.FC<ExpensesViewProps> = ({ orders, onRefresh }) => {
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 8;
+
+  const isExpense = (o: Order): boolean => {
+    const note = (o.raw_note || '').toLowerCase();
+    const item = (o.item_name || '').toLowerCase();
+    return (
+      note.includes('chi ') ||
+      note.includes('mua ') ||
+      note.includes('nhập ') ||
+      note.includes('phí ') ||
+      item.includes('chi phí') ||
+      item.includes('mua ') ||
+      o.total_price < 0
+    );
+  };
+
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  return fold(
+    orders,
+    () => <div className="text-center py-8">Chưa có dữ liệu.</div>,
+    () => (
+      <div className="animate-pulse flex flex-col gap-4 py-8">
+        {[1, 2, 3].map(i => <div key={i} className="skeleton h-20 w-full" />)}
+      </div>
+    ),
+    (err) => <div className="text-center text-red-500 py-8">Lỗi: {err.message}</div>,
+    (data) => {
+      // Filter expenses and search
+      const filtered = data
+        .filter(o => isExpense(o))
+        .filter(o => 
+          (o.item_name || '').toLowerCase().includes(search.toLowerCase()) ||
+          (o.raw_note || '').toLowerCase().includes(search.toLowerCase())
+        )
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      const totalPages = Math.ceil(filtered.length / itemsPerPage);
+      const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
+      return (
+        <div className="flex flex-col gap-4 animate-fade-in pb-16">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-0.5">
+              <h2 className="text-xl font-bold">Danh sách chi tiêu</h2>
+              <p className="text-xs text-slate-400">{filtered.length} khoản chi phí</p>
+            </div>
+            <button onClick={onRefresh} className="btn-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+            </button>
+          </div>
+
+          <input 
+            type="text"
+            placeholder="Tìm theo nội dung chi tiêu..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="w-full"
+          />
+
+          <div className="flex flex-col gap-3">
+            {paginated.length === 0 ? (
+              <div className="glass p-8 text-center text-slate-400">Không tìm thấy khoản chi nào.</div>
+            ) : (
+              paginated.map((exp, idx) => (
+                <div key={idx} className="glass p-4 flex flex-col gap-2 hover:border-red-500/20 transition-all animate-fade-in" style={{ borderColor: 'rgba(239, 68, 68, 0.08)' }}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">
+                        {exp.item_name || 'Chi tiêu'}
+                      </span>
+                      <p className="text-xs text-slate-400">{formatDate(exp.timestamp)}</p>
+                    </div>
+                    <span className="font-bold text-red-500">
+                      -{formatCurrency(Math.abs(exp.total_price))}
+                    </span>
+                  </div>
+                  {exp.raw_note && (
+                    <p className="text-xs italic text-slate-400 mt-1 border-t border-slate-50 dark:border-slate-850 pt-2">
+                      "{exp.raw_note}"
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-3 mt-4">
+              <button 
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+                className="btn-ghost px-3 py-1 text-sm min-h-0"
+              >
+                Trước
+              </button>
+              <span className="text-sm text-slate-400">Trang {page} / {totalPages}</span>
+              <button 
+                disabled={page === totalPages}
+                onClick={() => setPage(p => p + 1)}
+                className="btn-ghost px-3 py-1 text-sm min-h-0"
+              >
+                Sau
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+  );
+};
+
+// ---- MAIN APPLICATION SHELL -------------------------------------------------
 function App() {
   const [password, setPassword] = useState<string>('');
   const [apiUrl, setApiUrl] = useState<string>(localStorage.getItem('api_url') || '');
-  const [activeTab, setActiveTab] = useState<'add' | 'manage'>('add');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [orders, setOrders] = useState<RemoteData<Error, Order[]>>(notAsked());
-  const [showSettings, setShowSettings] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => {
+    return (localStorage.getItem('app_theme') as Theme) || 'light';
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    
+    const applyTheme = (t: Theme) => {
+      if (t === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        root.setAttribute('data-theme', systemTheme);
+      } else {
+        root.setAttribute('data-theme', t);
+      }
+    };
+
+    applyTheme(theme);
+    localStorage.setItem('app_theme', theme);
+
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => applyTheme('system');
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, [theme]);
 
   const fetchOrders = useCallback(async (pwd: string, url: string) => {
     if (!url) return;
@@ -41,8 +328,10 @@ function App() {
 
   const handleSaveSettings = () => {
     localStorage.setItem('api_url', apiUrl);
-    setShowSettings(false);
-    if (password && apiUrl) fetchOrders(password, apiUrl);
+    if (password && apiUrl) {
+      fetchOrders(password, apiUrl);
+      setActiveTab('overview');
+    }
   };
 
   const handleLogout = () => {
@@ -60,29 +349,33 @@ function App() {
           </div>
           <h1 className="text-xl">OrderAI</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowSettings(true)} className="btn-ghost p-2 rounded-full">
-            <Settings size={20} />
-          </button>
-          <button onClick={handleLogout} className="btn-ghost p-2 rounded-full text-red-400">
-            <LogOut size={20} />
+        <div className="flex items-center gap-1">
+          <button 
+            onClick={() => setTheme(prev => prev === 'light' ? 'dark' : prev === 'dark' ? 'system' : 'light')} 
+            className="btn-ghost p-2 rounded-full flex items-center justify-center"
+            title={`Current Theme: ${theme.toUpperCase()}`}
+            aria-label="Toggle theme"
+          >
+            {theme === 'light' && <Sun size={20} className="text-amber-500" />}
+            {theme === 'dark' && <Moon size={20} className="text-indigo-400" />}
+            {theme === 'system' && <Monitor size={20} className="text-slate-400" />}
           </button>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container pb-24">
-        {!apiUrl && !showSettings && (
+      <main className="container pb-28">
+        {!apiUrl && activeTab !== 'settings' && (
           <div className="glass p-8 text-center animate-fade-in flex flex-col gap-4">
-            <h2 className="text-xl font-bold">Setup Required</h2>
+            <h2 className="text-xl font-bold">Cấu hình kết nối sheet</h2>
             <p>Please configure your Google Apps Script URL in the settings to start.</p>
-            <button onClick={() => setShowSettings(true)} className="btn-primary">
-              Open Settings
+            <button onClick={() => setActiveTab('settings')} className="btn-primary">
+              Cài đặt ngay
             </button>
           </div>
         )}
 
-        {apiUrl && !isValidUrl(apiUrl) && (
+        {apiUrl && !isValidUrl(apiUrl) && activeTab !== 'settings' && (
           <div className="glass p-8 text-center animate-fade-in flex flex-col gap-6 border border-red-500/20">
             <div className="flex flex-col items-center gap-4 text-red-400">
               <div className="p-4 rounded-full bg-red-500/10">
@@ -91,7 +384,7 @@ function App() {
               <h2 className="text-2xl font-bold">Incorrect URL Configured</h2>
             </div>
             <p className="text-sm text-slate-300">
-              You configured a <strong>Google Sheets Spreadsheet URL</strong> (<code>docs.google.com</code>) instead of your <strong>Google Apps Script Web App Deployment URL</strong>.
+              You configured a <strong>Google Sheets Spreadsheet URL</strong> instead of your <strong>Google Apps Script Web App Deployment URL</strong>.
             </p>
             <div className="p-4 rounded-xl bg-slate-800/50 text-left flex flex-col gap-2">
               <span className="text-xs text-slate-400">Expected Format:</span>
@@ -99,69 +392,155 @@ function App() {
                 https://script.google.com/macros/s/.../exec
               </code>
             </div>
-            <button onClick={() => setShowSettings(true)} className="btn-primary">
+            <button onClick={() => setActiveTab('settings')} className="btn-primary">
               Fix Configuration
             </button>
           </div>
         )}
 
         {apiUrl && isValidUrl(apiUrl) && (
-          activeTab === 'add' ? (
-            <OrderInput apiUrl={apiUrl} password={password} />
-          ) : (
-            <ManagementDashboard orders={orders} onRefresh={() => fetchOrders(password, apiUrl)} />
-          )
+          (() => {
+            switch (activeTab) {
+              case 'overview':
+                return <ManagementDashboard orders={orders} onRefresh={() => fetchOrders(password, apiUrl)} />;
+              case 'invoices':
+                return <InvoicesView orders={orders} onRefresh={() => fetchOrders(password, apiUrl)} />;
+              case 'add':
+                return <OrderInput apiUrl={apiUrl} password={password} />;
+              case 'expenses':
+                return <ExpensesView orders={orders} onRefresh={() => fetchOrders(password, apiUrl)} />;
+              case 'settings':
+                return (
+                  <div className="flex flex-col gap-6 animate-fade-in pb-16">
+                    <div className="flex flex-col gap-1">
+                      <h2 className="text-xl font-bold">Nhiều hơn</h2>
+                      <p className="text-xs text-slate-400">Quản lý cấu hình hệ thống và giao diện</p>
+                    </div>
+
+                    {/* API Configuration Card */}
+                    <div className="glass p-5 flex flex-col gap-4">
+                      <h3 className="font-semibold text-sm uppercase tracking-wider text-blue-500">Cấu hình kết nối sheet</h3>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs text-slate-400">Google Apps Script Web App URL</label>
+                        <input 
+                          type="text" 
+                          value={apiUrl} 
+                          onChange={(e) => setApiUrl(e.target.value)}
+                          placeholder="https://script.google.com/macros/s/.../exec"
+                          className={apiUrl && !isValidUrl(apiUrl) ? 'border-red-500/50 focus:border-red-500' : ''}
+                        />
+                        {apiUrl && !isValidUrl(apiUrl) && (
+                          <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
+                            <AlertTriangle size={12} />
+                            <span>Must be a Web App URL ending in /exec. Do not use Sheet URL!</span>
+                          </p>
+                        )}
+                        <button onClick={handleSaveSettings} className="btn-primary mt-2">
+                          Lưu cấu hình
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Theme Settings Card */}
+                    <div className="glass p-5 flex flex-col gap-4">
+                      <h3 className="font-semibold text-sm uppercase tracking-wider text-blue-500">Giao diện</h3>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">Chế độ hiển thị</span>
+                        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                          {(['light', 'dark', 'system'] as Theme[]).map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => setTheme(t)}
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1 min-h-0 min-w-0 ${theme === t ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-500' : 'text-slate-400 hover:text-slate-655 dark:hover:text-slate-200 bg-transparent'}`}
+                            >
+                              {t === 'light' && <Sun size={12} />}
+                              {t === 'dark' && <Moon size={12} />}
+                              {t === 'system' && <Monitor size={12} />}
+                              <span className="capitalize">{t}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Security Actions */}
+                    <div className="glass p-5 flex flex-col gap-4 border border-red-500/10" style={{ background: 'rgba(239, 68, 68, 0.02)' }}>
+                      <h3 className="font-semibold text-sm uppercase tracking-wider text-red-500">Bảo mật</h3>
+                      <p className="text-xs text-slate-400">Đăng xuất khỏi thiết bị này để xoá mật khẩu và cấu hình lưu trữ.</p>
+                      <button onClick={handleLogout} className="btn-ghost text-red-500 border border-red-500/20 hover:bg-red-500/10 w-full">
+                        <LogOut size={16} />
+                        <span>Đăng xuất</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+            }
+          })()
         )}
       </main>
 
-      {/* Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 p-4 pb-safe flex-center">
-        <div className="glass w-full max-w-sm px-2 py-2 flex items-center justify-around gap-2">
-          <button 
-            onClick={() => setActiveTab('add')}
-            className={`btn-ghost flex-1 py-3 ${activeTab === 'add' ? 'active' : ''}`}
-          >
-            <PlusCircle size={20} />
-            <span>Add Order</span>
-          </button>
-          <button 
-            onClick={() => setActiveTab('manage')}
-            className={`btn-ghost flex-1 py-3 ${activeTab === 'manage' ? 'active' : ''}`}
-          >
-            <BarChart3 size={20} />
-            <span>Management</span>
-          </button>
-        </div>
-      </nav>
-
-      {/* Settings Modal */}
-      {showSettings && (
-        <div className="fixed inset-0 z-50 flex-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="glass p-8 w-full max-w-md animate-fade-in flex flex-col gap-6">
-            <h2 className="text-2xl font-bold">Settings</h2>
-            <div className="flex flex-col gap-2">
-              <label className="text-sm text-slate-400">Google Apps Script Web App URL</label>
-              <input 
-                type="text" 
-                value={apiUrl} 
-                onChange={(e) => setApiUrl(e.target.value)}
-                placeholder="https://script.google.com/macros/s/.../exec"
-                className={apiUrl && !isValidUrl(apiUrl) ? 'border-red-500/50 focus:border-red-500' : ''}
-              />
-              {apiUrl && !isValidUrl(apiUrl) && (
-                <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
-                  <AlertTriangle size={12} />
-                  <span>Must be a Web App URL ending in /exec. Do not use your Sheet spreadsheet URL!</span>
-                </p>
-              )}
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowSettings(false)} className="btn-ghost flex-1">Cancel</button>
-              <button onClick={handleSaveSettings} className="btn-primary flex-1">Save Changes</button>
-            </div>
+      {/* CURVED BOTTOM NAVIGATION DOCK */}
+      <div className="bottom-dock-wrapper pb-safe">
+        <div className="bottom-dock">
+          {/* Background curved SVG overlay */}
+          <div className="bottom-dock-bg">
+            <svg className="bottom-dock-svg" viewBox="0 0 100 40" preserveAspectRatio="none">
+              <path d="M 0,0 L 38,0 C 43,0 42,26 50,26 C 58,26 57,0 62,0 L 100,0 L 100,40 L 0,40 Z" />
+            </svg>
           </div>
+
+          {/* 1. Overview */}
+          <button 
+            onClick={() => setActiveTab('overview')}
+            className={`nav-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+            aria-label="Tổng quan"
+          >
+            <BarChart3 size={18} />
+            <span>Tổng quan</span>
+          </button>
+
+          {/* 2. Invoices */}
+          <button 
+            onClick={() => setActiveTab('invoices')}
+            className={`nav-tab-btn ${activeTab === 'invoices' ? 'active' : ''}`}
+            aria-label="Hoá đơn"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+            <span>Hoá đơn</span>
+          </button>
+
+          {/* 3. Sales Raised Center Button (FAB) */}
+          <div className="fab-container">
+            <button 
+              onClick={() => setActiveTab('add')}
+              className="fab-btn"
+              aria-label="Bán hàng"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5z"/><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/></svg>
+            </button>
+          </div>
+
+          {/* 4. Expenses */}
+          <button 
+            onClick={() => setActiveTab('expenses')}
+            className={`nav-tab-btn ${activeTab === 'expenses' ? 'active' : ''}`}
+            aria-label="Chi phí"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M16 12a2 2 0 0 0 0 4h5v-4z"/></svg>
+            <span>Chi phí</span>
+          </button>
+
+          {/* 5. More */}
+          <button 
+            onClick={() => setActiveTab('settings')}
+            className={`nav-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+            aria-label="Nhiều hơn"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+            <span>Nhiều hơn</span>
+          </button>
         </div>
-      )}
+      </div>
     </AuthBarrier>
   );
 }
