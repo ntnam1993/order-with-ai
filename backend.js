@@ -93,6 +93,11 @@ function doPost(e) {
         totalPrice,
         note
       ]);
+
+      // Force Quantity (col 4), Price Unit (col 5), Total Price (col 6) to plain number format.
+      // Without this, Google Sheets auto-interprets small integers as date serial numbers.
+      const newRow = sheet.getLastRow();
+      sheet.getRange(newRow, 4, 1, 3).setNumberFormat("0");
     });
 
     return jsonResponse({ success: true, count: parsedOrders.length, data: parsedOrders });
