@@ -16,22 +16,25 @@ const OrderInput: React.FC<OrderInputProps> = ({ apiUrl, password }) => {
 
     setStatus('loading');
     try {
-      await fetch(apiUrl, {
+      const res = await fetch(apiUrl, {
         method: 'POST',
-        mode: 'no-cors', // Apps Script requires no-cors for simple POST or redirects handle
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ password, note })
       });
       
-      // Note: With 'no-cors', we can't see the body, but Apps Script usually handles it.
-      // If we want a response, we'd need to use JSONP or a proxy, but for simplicity:
-      setNote('');
-      setStatus('success');
-      setTimeout(() => setStatus('idle'), 3000);
+      const result = await res.json();
+      
+      if (result.success) {
+        setNote('');
+        setStatus('success');
+        setTimeout(() => setStatus('idle'), 3000);
+      } else {
+        setStatus('error');
+        setErrorMsg(result.error || 'Failed to save order.');
+      }
     } catch {
       setStatus('error');
       setErrorMsg('Failed to save order. Please check your connection.');
-      setTimeout(() => setStatus('idle'), 5000);
     }
   };
 

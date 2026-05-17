@@ -57,8 +57,10 @@ function doPost(e) {
       return jsonResponse({ success: false, error: "Server Configuration Error: OPENAI_API_KEY is not set" });
     }
 
+    console.log("doPost: received raw note = '" + note + "'");
     // Call OpenAI to parse the natural language note
     const parsedOrders = parseNoteWithOpenAI(note, apiKey);
+    console.log("doPost: OpenAI parsed orders =", JSON.stringify(parsedOrders));
 
     // Save to Google Sheet
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
@@ -69,7 +71,16 @@ function doPost(e) {
     const timestamp = new Date();
     parsedOrders.forEach(order => {
       const quantity = parseInt(order.quantity, 10) || 1;
-      const priceUnit = parseInt(order.price_unit, 10) || 0;
+      let priceUnit = parseInt(order.price_unit, 10) || 0;
+      
+      console.log("doPost: processing order item =", order.item, ", parsed price =", priceUnit);
+      
+      // Auto-fallback to the latest known price from the sheet if the current parsed price is 0
+      if (priceUnit === 0 && order.item) {
+        priceUnit = getLatestPriceForItem(sheet, order.item);
+        console.log("doPost: priceUnit resolved from history =", priceUnit);
+      }
+      
       const totalPrice = quantity * priceUnit;
       const customer = order.customer && order.customer.toLowerCase() !== "regular" ? order.customer : "Regular";
 
@@ -152,8 +163,14 @@ Every object in the array MUST have exactly these keys: "item", "quantity", "pri
 
 Rules:
 1. Currency conversion: convert Vietnamese slang terms like "k", "n", "ngàn", "ng" to 1000 and "tr", "triệu" to 1000000. Example: "20k" -> 20000, "1.5tr" -> 1500000.
-2. Price calculations: If a total cost is given for a specific quantity, divide the total cost by the quantity to get the "price_unit".
-   Example: "3 banh mi 60k" -> item: "Bánh mì", quantity: 3, price_unit: 20000.
+2. Price calculations & Vietnamese pricing conventions: 
+   - If a total cost is given for a specific quantity, divide the total cost by the quantity to get the "price_unit".
+   - Under Vietnamese pricing patterns, if a large quantity (e.g., 5, 10, 20) is written with a large price (e.g., 50k, 100k, 150k), it represents the TOTAL price, so divide total by quantity to get "price_unit".
+     - Example: "10 hũ 50k" -> quantity: 10, item: "hũ", price_unit: 5000 (since 50k / 10 = 5k).
+     - Example: "Nam 10 hũ 50k" -> customer: "Nam", quantity: 10, item: "hũ", price_unit: 5000.
+     - Example: "3 banh mi 60k" -> quantity: 3, item: "Bánh mì", price_unit: 20000.
+   - If the price is very small relative to the quantity (e.g., "10 hũ 5k"), the price represents the UNIT price directly.
+     - Example: "10 hũ 5k" -> quantity: 10, item: "hũ", price_unit: 5000.
 3. Quantity default: If no quantity is specified, default it to 1.
 4. Customer field: Extract the name of the buyer/customer if mentioned (e.g., "cho anh Nam", "khách Linh"). If not mentioned or unclear, set "customer" to "Regular".
 5. Language: Handle Vietnamese input naturally.
@@ -208,4 +225,54 @@ Rules:
 function jsonResponse(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Helper to fetch the latest price unit of a matching item in the Google Sheet database
+ */
+function getLatestPriceForItem(sheet, itemName) {
+  console.log("getLatestPriceForItem: looking up item:", itemName);
+  if (!itemName) return 0;
+  
+  const rows = sheet.getDataRange().getValues();
+  console.log("getLatestPriceForItem: total rows in sheet =", rows.length);
+  if (rows.length <= 1) return 0;
+  
+  const headers = rows[0].map(h => h.toString().toLowerCase().trim());
+  console.log("getLatestPriceForItem: normalized headers =", JSON.stringify(headers));
+  
+  let itemIndex = headers.indexOf("item name");
+  let priceIndex = headers.indexOf("price unit");
+  console.log("getLatestPriceForItem: detected indices by name -> itemIndex =", itemIndex, ", priceIndex =", priceIndex);
+  
+  if (itemIndex === -1) {
+    itemIndex = 2; // Column C: Item Name
+    console.log("getLatestPriceForItem: falling back to Column C (index 2)");
+  }
+  if (priceIndex === -1) {
+    priceIndex = 4; // Column E: Price Unit
+    console.log("getLatestPriceForItem: falling back to Column E (index 4)");
+  }
+  
+  const cleanItem = itemName.toLowerCase().trim();
+  for (let i = rows.length - 1; i >= 1; i--) {
+    const rowItemVal = rows[i][itemIndex];
+    const rowPriceVal = rows[i][priceIndex];
+    if (rowItemVal === undefined || rowPriceVal === undefined) {
+      console.log("getLatestPriceForItem: row " + i + " has undefined values");
+      continue;
+    }
+    
+    const rowItem = rowItemVal.toString().toLowerCase().trim();
+    const rowPrice = parseFloat(rowPriceVal);
+    console.log("getLatestPriceForItem: checking row " + i + " -> Item: '" + rowItem + "', Price: " + rowPrice);
+    
+    if (rowItem === cleanItem && !isNaN(rowPrice) && rowPrice > 0) {
+      console.log("getLatestPriceForItem: MATCH FOUND at row " + i + "! Returning price: " + rowPrice);
+      return rowPrice;
+    }
+  }
+  
+  console.log("getLatestPriceForItem: NO MATCH found in sheet history.");
+  return 0;
 }

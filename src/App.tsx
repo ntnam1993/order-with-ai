@@ -1,10 +1,15 @@
 import { useState, useCallback } from 'react';
-import { PlusCircle, BarChart3, Settings, LogOut } from 'lucide-react';
+import { PlusCircle, BarChart3, Settings, LogOut, AlertTriangle } from 'lucide-react';
 import type { Order, RemoteData } from './types';
 import { notAsked, loading, success, failure } from './types';
 import AuthBarrier from './components/AuthBarrier';
 import OrderInput from './components/OrderInput';
 import ManagementDashboard from './components/ManagementDashboard';
+
+const isValidUrl = (url: string) => {
+  if (!url) return true;
+  return url.trim().startsWith('https://script.google.com/') && url.includes('/macros/s/') && url.includes('/exec');
+};
 
 function App() {
   const [password, setPassword] = useState<string>('');
@@ -69,7 +74,7 @@ function App() {
       <main className="container pb-24">
         {!apiUrl && !showSettings && (
           <div className="glass p-8 text-center animate-fade-in flex flex-col gap-4">
-            <h2 className="text-xl">Setup Required</h2>
+            <h2 className="text-xl font-bold">Setup Required</h2>
             <p>Please configure your Google Apps Script URL in the settings to start.</p>
             <button onClick={() => setShowSettings(true)} className="btn-primary">
               Open Settings
@@ -77,7 +82,30 @@ function App() {
           </div>
         )}
 
-        {apiUrl && (
+        {apiUrl && !isValidUrl(apiUrl) && (
+          <div className="glass p-8 text-center animate-fade-in flex flex-col gap-6 border border-red-500/20">
+            <div className="flex flex-col items-center gap-4 text-red-400">
+              <div className="p-4 rounded-full bg-red-500/10">
+                <AlertTriangle size={48} />
+              </div>
+              <h2 className="text-2xl font-bold">Incorrect URL Configured</h2>
+            </div>
+            <p className="text-sm text-slate-300">
+              You configured a <strong>Google Sheets Spreadsheet URL</strong> (<code>docs.google.com</code>) instead of your <strong>Google Apps Script Web App Deployment URL</strong>.
+            </p>
+            <div className="p-4 rounded-xl bg-slate-800/50 text-left flex flex-col gap-2">
+              <span className="text-xs text-slate-400">Expected Format:</span>
+              <code className="text-xs text-indigo-400 select-all break-all">
+                https://script.google.com/macros/s/.../exec
+              </code>
+            </div>
+            <button onClick={() => setShowSettings(true)} className="btn-primary">
+              Fix Configuration
+            </button>
+          </div>
+        )}
+
+        {apiUrl && isValidUrl(apiUrl) && (
           activeTab === 'add' ? (
             <OrderInput apiUrl={apiUrl} password={password} />
           ) : (
@@ -118,7 +146,14 @@ function App() {
                 value={apiUrl} 
                 onChange={(e) => setApiUrl(e.target.value)}
                 placeholder="https://script.google.com/macros/s/.../exec"
+                className={apiUrl && !isValidUrl(apiUrl) ? 'border-red-500/50 focus:border-red-500' : ''}
               />
+              {apiUrl && !isValidUrl(apiUrl) && (
+                <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
+                  <AlertTriangle size={12} />
+                  <span>Must be a Web App URL ending in /exec. Do not use your Sheet spreadsheet URL!</span>
+                </p>
+              )}
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowSettings(false)} className="btn-ghost flex-1">Cancel</button>
