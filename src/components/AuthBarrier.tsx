@@ -8,13 +8,12 @@ interface AuthBarrierProps {
 
 const AuthBarrier: React.FC<AuthBarrierProps> = ({ onAuth, children }) => {
   const [password, setPassword] = useState('');
-  const [isAuthed, setIsAuthed] = useState(false);
+  const [isAuthed, setIsAuthed] = useState(() => !!localStorage.getItem('app_password'));
   const [error, setError] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('app_password');
     if (saved) {
-      setIsAuthed(true);
       onAuth(saved);
     }
   }, [onAuth]);

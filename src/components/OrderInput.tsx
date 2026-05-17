@@ -28,7 +28,7 @@ const OrderInput: React.FC<OrderInputProps> = ({ apiUrl, password }) => {
       setNote('');
       setStatus('success');
       setTimeout(() => setStatus('idle'), 3000);
-    } catch (err) {
+    } catch {
       setStatus('error');
       setErrorMsg('Failed to save order. Please check your connection.');
       setTimeout(() => setStatus('idle'), 5000);

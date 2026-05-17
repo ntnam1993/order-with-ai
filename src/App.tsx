@@ -29,10 +29,10 @@ function App() {
     }
   }, []);
 
-  const handleAuth = (pwd: string) => {
+  const handleAuth = useCallback((pwd: string) => {
     setPassword(pwd);
     if (apiUrl) fetchOrders(pwd, apiUrl);
-  };
+  }, [apiUrl, fetchOrders]);
 
   const handleSaveSettings = () => {
     localStorage.setItem('api_url', apiUrl);
