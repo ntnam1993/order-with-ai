@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: '/order-with-ai/',
   plugins: [
     tailwindcss(),
     react(),
