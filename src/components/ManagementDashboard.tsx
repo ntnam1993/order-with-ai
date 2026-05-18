@@ -17,7 +17,7 @@ const formatCurrency = (val: number) =>
 
 const formatCurrencyCompact = (val: number): string => {
   if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M ₫`;
-  if (val >= 1_000)     return `${(val / 1_000).toFixed(0)}k ₫`;
+  if (val >= 1_000) return `${(val / 1_000).toFixed(0)}k ₫`;
   return formatCurrency(val);
 };
 
@@ -140,7 +140,7 @@ const ManagementDashboard: React.FC<DashboardProps> = ({ orders, onRefresh }) =>
   };
 
   const now = new Date();
-  
+
   // Date checkers
   const checkDate = {
     today: (dStr: string) => {
@@ -160,11 +160,11 @@ const ManagementDashboard: React.FC<DashboardProps> = ({ orders, onRefresh }) =>
       const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
       startOfWeek.setDate(diff);
       startOfWeek.setHours(0, 0, 0, 0);
-      
+
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
       endOfWeek.setHours(23, 59, 59, 999);
-      
+
       return d >= startOfWeek && d <= endOfWeek;
     },
     month: (dStr: string) => {
@@ -326,16 +326,16 @@ const ManagementDashboard: React.FC<DashboardProps> = ({ orders, onRefresh }) =>
   // Generate SVG Bezier Path
   const svgPath = useMemo(() => {
     if (!computedData || !computedData.chartPoints || computedData.chartPoints.length === 0) return { line: '', area: '', points: [] };
-    
+
     const pts = computedData.chartPoints;
     const width = 500;
     const height = 180;
     const paddingX = 35;
     const paddingY = 30;
-    
+
     const xStep = (width - paddingX * 2) / (pts.length - 1);
     const maxVal = computedData.maxVal || 1;
-    
+
     const points = pts.map((p, idx) => {
       const x = paddingX + idx * xStep;
       // Map y from height-paddingY (0 value) to paddingY (max value)
@@ -344,7 +344,7 @@ const ManagementDashboard: React.FC<DashboardProps> = ({ orders, onRefresh }) =>
     });
 
     if (points.length === 0) return { line: '', area: '', points: [] };
-    
+
     // Draw Bezier Line
     let line = `M ${points[0].x} ${points[0].y}`;
     for (let i = 0; i < points.length - 1; i++) {
@@ -356,10 +356,10 @@ const ManagementDashboard: React.FC<DashboardProps> = ({ orders, onRefresh }) =>
       const cpY2 = p1.y;
       line += ` C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${p1.x} ${p1.y}`;
     }
-    
+
     // Draw Closed Area
     const area = `${line} L ${points[points.length - 1].x} ${height - 10} L ${points[0].x} ${height - 10} Z`;
-    
+
     return { line, area, points };
   }, [computedData]);
 
@@ -446,7 +446,7 @@ const ManagementDashboard: React.FC<DashboardProps> = ({ orders, onRefresh }) =>
             {/* ── Revenue Chart Card ── */}
             <div className="chart-card">
               <span className="kpi-label" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Doanh thu</span>
-              
+
               <div className="chart-container">
                 <svg className="chart-svg" viewBox="0 0 500 180" preserveAspectRatio="none">
                   <defs>
@@ -501,26 +501,43 @@ const ManagementDashboard: React.FC<DashboardProps> = ({ orders, onRefresh }) =>
                           strokeWidth={isPeak ? "3.5" : "2"}
                           className="chart-dot"
                         />
-                        
+
                         {/* Dynamic Tooltip/Label */}
                         {shouldShowLabel && (
                           <g>
-                            {/* Value label */}
-                            <text
-                              x={p.x}
-                              y={p.y - 12}
-                              textAnchor="middle"
-                              fill="var(--text-main)"
-                              fontSize="0.75rem"
-                              fontWeight="700"
-                              style={{
-                                background: 'var(--bg-secondary)',
-                                padding: '2px 4px',
-                                borderRadius: '4px'
-                              }}
-                            >
-                              {formatCurrencyCompact(p.value)}
-                            </text>
+                            {(() => {
+                              const labelText = formatCurrencyCompact(p.value);
+                              const rectWidth = Math.max(42, labelText.length * 7.2 + 10);
+                              const rectHeight = 18;
+                              const rectX = p.x - rectWidth / 2;
+                              const rectY = p.y - 24;
+                              return (
+                                <>
+                                  <rect
+                                    x={rectX}
+                                    y={rectY}
+                                    width={rectWidth}
+                                    height={rectHeight}
+                                    rx="5"
+                                    ry="5"
+                                    fill="var(--bg-secondary)"
+                                    stroke="rgba(59, 130, 246, 0.25)"
+                                    strokeWidth="1"
+                                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.05))' }}
+                                  />
+                                  <text
+                                    x={p.x}
+                                    y={p.y - 11}
+                                    textAnchor="middle"
+                                    fill="var(--text-main)"
+                                    fontSize="0.7rem"
+                                    fontWeight="700"
+                                  >
+                                    {labelText}
+                                  </text>
+                                </>
+                              );
+                            })()}
                           </g>
                         )}
 
@@ -545,39 +562,50 @@ const ManagementDashboard: React.FC<DashboardProps> = ({ orders, onRefresh }) =>
             </div>
 
             {/* ── Dual Columns Summary Card ── */}
-            <div className="glass p-4" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              
-              {/* Left Column: Chi tiêu trong kỳ */}
-              <div className="flex flex-col gap-1 pr-4" style={{ borderRight: '1px solid var(--border-color)' }}>
-                <span className="flex items-center gap-1" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                  Chi {activePeriodLabel.toLowerCase()}
-                  <ChevronRight size={12} className="text-slate-400" />
-                </span>
-                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                  {formatCurrencyCompact(computedData.totalExpenses)}
-                </span>
-              </div>
+            {(() => {
+              const isPositiveProfit = computedData.netProfit >= 0;
+              const absProfitStr = formatCurrencyCompact(Math.abs(computedData.netProfit));
+              const profitColorClass = isPositiveProfit
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-rose-600 dark:text-rose-400';
+              const profitSign = computedData.netProfit > 0 ? '+' : computedData.netProfit < 0 ? '-' : '';
 
-              {/* Right Column: Doanh thu - Chi phí */}
-              <div className="flex flex-col gap-1 pl-1">
-                <span className="flex items-center justify-between gap-1" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                  <span>Doanh thu - Chi phí</span>
-                  <button 
-                    onClick={toggleBalance} 
-                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
-                    style={{ minHeight: 'auto', minWidth: 'auto', padding: '2px' }}
-                  >
-                    {showBalance ? <Eye size={13} className="text-slate-400" /> : <EyeOff size={13} className="text-slate-400" />}
-                  </button>
-                </span>
-                <span className={`privacy-value ${!showBalance ? 'blur' : ''}`} style={{ fontSize: '1.2rem', fontWeight: 700, color: '#2563eb' }}>
-                  {showBalance ? `+${formatCurrencyCompact(computedData.netProfit)}` : '••••••'}
-                </span>
-              </div>
-            </div>
+              return (
+                <div className="glass p-4" style={{ display: 'grid', padding: '1rem', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+
+                  {/* Left Column: Chi tiêu trong kỳ */}
+                  <div className="flex flex-col gap-1 pr-4" style={{ borderRight: '1px solid var(--border-color)' }}>
+                    <span className="flex items-center gap-1" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                      Chi {activePeriodLabel.toLowerCase()}
+                      <ChevronRight size={12} className="text-slate-400" />
+                    </span>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                      {formatCurrencyCompact(computedData.totalExpenses)}
+                    </span>
+                  </div>
+
+                  {/* Right Column: Doanh thu - Chi phí */}
+                  <div className="flex flex-col gap-1 pl-1">
+                    <span className="flex items-center justify-between gap-1" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                      <span>Doanh thu - Chi phí</span>
+                      <button
+                        onClick={toggleBalance}
+                        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                        style={{ minHeight: 'auto', minWidth: 'auto', padding: '2px' }}
+                      >
+                        {showBalance ? <Eye size={13} className="text-slate-400" /> : <EyeOff size={13} className="text-slate-400" />}
+                      </button>
+                    </span>
+                    <span className={`privacy-value ${!showBalance ? 'blur' : ''} ${profitColorClass}`} style={{ fontSize: '1.2rem', fontWeight: 700 }}>
+                      {showBalance ? `${profitSign}${absProfitStr}` : '••••••'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── Best Sellers Card ── */}
-            <div className="glass p-5 flex flex-col gap-3">
+            <div className="glass p-5 flex flex-col gap-3" style={{ padding: '1rem 1rem 0 1rem' }}>
               <div className="flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
                 <span className="section-title" style={{ fontSize: '0.85rem', textTransform: 'none', fontWeight: 600 }}>
                   Hàng hóa bán chạy
@@ -590,28 +618,29 @@ const ManagementDashboard: React.FC<DashboardProps> = ({ orders, onRefresh }) =>
               {computedData.itemBreakdown.length === 0 ? (
                 <p className="text-center py-6 text-sm text-[var(--text-dim)]">Không có sản phẩm nào bán chạy trong kỳ.</p>
               ) : (
-                <div className="flex flex-col">
-                  {(showAllBestSellers 
-                    ? computedData.itemBreakdown 
+                <div className="best-seller-list">
+                  {(showAllBestSellers
+                    ? computedData.itemBreakdown
                     : computedData.itemBreakdown.slice(0, 3)
                   ).map(([item, qty], idx) => {
+                    const rankClass = idx === 0 ? 'rank-1' : idx === 1 ? 'rank-2' : idx === 2 ? 'rank-3' : 'rank-other';
                     return (
-                      <div key={item} className="best-seller-row flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 flex-1" style={{ minWidth: 0 }}>
-                          <span className="best-seller-index">{idx + 1}</span>
+                      <div key={item} className="best-seller-row">
+                        <div className="flex items-center gap-3 flex-1" style={{ minWidth: 0 }}>
+                          <span className={`best-seller-rank-badge ${rankClass}`}>{idx + 1}</span>
                           <span className="best-seller-name truncate">{item}</span>
                         </div>
-                        <span className="best-seller-qty" style={{ color: '#2563eb', fontWeight: 700 }}>
+                        <span className="best-seller-qty">
                           x{qty}
                         </span>
                       </div>
                     );
                   })}
-                  
+
                   {computedData.itemBreakdown.length > 3 && (
-                    <button 
+                    <button
                       onClick={() => setShowAllBestSellers(prev => !prev)}
-                      className="btn-ghost w-full text-center mt-3 pt-2 text-xs font-semibold text-blue-500 hover:text-blue-600"
+                      className="btn-ghost w-full text-center mt-2 text-xs font-semibold text-blue-500 hover:text-blue-600"
                       style={{ minHeight: '32px', padding: '4px 0' }}
                     >
                       {showAllBestSellers ? 'Thu gọn' : 'Xem tất cả'}
@@ -624,7 +653,7 @@ const ManagementDashboard: React.FC<DashboardProps> = ({ orders, onRefresh }) =>
           </div>
         )
       )}
-    </div>
+    </div >
   );
 };
 

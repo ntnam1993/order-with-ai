@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* ============================================================
    DESIGN TOKENS
    ============================================================ */
@@ -136,7 +138,7 @@
   /* Typography */
   --text-main: #f1f5f9;
   --text-muted: #94a3b8;
-  --text-dim: #475569;
+  --text-dim: #64748b;
 
   /* Button ghost & interactive overlays */
   --btn-ghost-hover: rgba(255, 255, 255, 0.05);
@@ -939,32 +941,91 @@ textarea::placeholder, input::placeholder {
 /* ============================================================
    BEST SELLER ROW
    ============================================================ */
+.best-seller-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
 .best-seller-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 0.9rem;
+  padding: 0.75rem 0.85rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
 }
 
-.best-seller-row:last-child {
-  border-bottom: none;
+.best-seller-row:hover {
+  background: var(--surface-hover);
+  transform: translateY(-1.5px);
+  box-shadow: var(--shadow-md);
+  border-color: rgba(79, 70, 229, 0.2);
 }
 
-.best-seller-index {
-  font-weight: 600;
+.best-seller-row:active {
+  transform: translateY(-0.5px);
+  box-shadow: var(--shadow-sm);
+}
+
+.best-seller-rank-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #ffffff;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+/* Rank 1: Premium Gold Gradient */
+.rank-1 {
+  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.25);
+}
+
+/* Rank 2: Premium Silver Gradient */
+.rank-2 {
+  background: linear-gradient(135deg, #cbd5e1 0%, #64748b 100%);
+  box-shadow: 0 2px 6px rgba(100, 116, 139, 0.2);
+}
+
+/* Rank 3: Premium Bronze Gradient */
+.rank-3 {
+  background: linear-gradient(135deg, #ca8a04 0%, #854d0e 100%);
+  box-shadow: 0 2px 6px rgba(133, 77, 14, 0.2);
+}
+
+/* Rank 4+: Slate Subtle Badge */
+.rank-other {
+  background: var(--border-color);
   color: var(--text-muted);
-  width: 1.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.1);
 }
 
 .best-seller-name {
   color: var(--text-main);
+  font-weight: 550;
   flex: 1;
 }
 
 .best-seller-qty {
-  font-weight: 600;
-  color: var(--text-muted);
+  font-weight: 700;
+  color: var(--primary-color);
+  font-variant-numeric: tabular-nums;
+  background: var(--primary-bg);
+  padding: 0.2rem 0.55rem;
+  border-radius: 99px;
+  font-size: 0.78rem;
+  border: 1px solid rgba(79, 70, 229, 0.1);
 }
+
 
