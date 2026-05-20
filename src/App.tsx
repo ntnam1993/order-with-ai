@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
-import { PlusCircle, BarChart3, LogOut, AlertTriangle, Sun, Moon, Monitor, Search, Sparkles } from 'lucide-react';
+import { PlusCircle, BarChart3, AlertTriangle, Sun, Moon, Monitor, Search, Sparkles } from 'lucide-react';
 import type { Order, RemoteData } from './types';
 import { notAsked, loading, success, failure, fold } from './types';
 import AuthBarrier from './components/AuthBarrier';
 import OrderInput from './components/OrderInput';
 import ManagementDashboard from './components/ManagementDashboard';
+import SettingsView from './components/SettingsView';
 
 type Theme = 'light' | 'dark' | 'system';
 type ActiveTab = 'overview' | 'invoices' | 'add' | 'expenses' | 'settings';
@@ -354,13 +355,14 @@ function App() {
     if (apiUrl) fetchOrders(pwd, apiUrl);
   }, [apiUrl, fetchOrders]);
 
-  const handleSaveSettings = () => {
-    localStorage.setItem('api_url', apiUrl);
-    if (password && apiUrl) {
-      fetchOrders(password, apiUrl);
+  const handleSaveSettings = useCallback((url: string) => {
+    setApiUrl(url);
+    localStorage.setItem('api_url', url);
+    if (password && url && isValidUrl(url)) {
+      fetchOrders(password, url);
       setActiveTab('overview');
     }
-  };
+  }, [password, fetchOrders]);
 
   const handleLogout = () => {
     localStorage.removeItem('app_password');
@@ -394,68 +396,13 @@ function App() {
       {/* Main Content */}
       <main className="container pb-28">
         {activeTab === 'settings' ? (
-          <div className="flex flex-col gap-6 animate-fade-in pb-16">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-xl font-bold">Nhiều hơn</h2>
-              <p className="text-xs text-slate-400">Quản lý cấu hình hệ thống và giao diện</p>
-            </div>
-
-            {/* API Configuration Card */}
-            <div className="glass p-5 flex flex-col gap-4">
-              <h3 className="font-semibold text-sm uppercase tracking-wider text-blue-500">Cấu hình kết nối sheet</h3>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs text-slate-400">Google Apps Script Web App URL</label>
-                <input
-                  type="text"
-                  value={apiUrl}
-                  onChange={(e) => setApiUrl(e.target.value)}
-                  placeholder="https://script.google.com/macros/s/.../exec"
-                  className={apiUrl && !isValidUrl(apiUrl) ? 'border-red-500/50 focus:border-red-500' : ''}
-                />
-                {apiUrl && !isValidUrl(apiUrl) && (
-                  <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
-                    <AlertTriangle size={12} />
-                    <span>Must be a Web App URL ending in /exec. Do not use Sheet URL!</span>
-                  </p>
-                )}
-                <button onClick={handleSaveSettings} className="btn-primary mt-2">
-                  Lưu cấu hình
-                </button>
-              </div>
-            </div>
-
-            {/* Theme Settings Card */}
-            <div className="glass p-5 flex flex-col gap-4">
-              <h3 className="font-semibold text-sm uppercase tracking-wider text-blue-500">Giao diện</h3>
-              <div className="flex justify-between items-center">
-                <span className="text-sm">Chế độ hiển thị</span>
-                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                  {(['light', 'dark', 'system'] as Theme[]).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTheme(t)}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1 min-h-0 min-w-0 ${theme === t ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-500' : 'text-slate-400 hover:text-slate-655 dark:hover:text-slate-200 bg-transparent'}`}
-                    >
-                      {t === 'light' && <Sun size={12} />}
-                      {t === 'dark' && <Moon size={12} />}
-                      {t === 'system' && <Monitor size={12} />}
-                      <span className="capitalize">{t}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Security Actions */}
-            <div className="glass p-5 flex flex-col gap-4 border border-red-500/10" style={{ background: 'rgba(239, 68, 68, 0.02)' }}>
-              <h3 className="font-semibold text-sm uppercase tracking-wider text-red-500">Bảo mật</h3>
-              <p className="text-xs text-slate-400">Đăng xuất khỏi thiết bị này để xoá mật khẩu và cấu hình lưu trữ.</p>
-              <button onClick={handleLogout} className="btn-ghost text-red-500 border border-red-500/20 hover:bg-red-500/10 w-full">
-                <LogOut size={16} />
-                <span>Đăng xuất</span>
-              </button>
-            </div>
-          </div>
+          <SettingsView
+            apiUrl={apiUrl}
+            onSaveUrl={handleSaveSettings}
+            theme={theme}
+            setTheme={setTheme}
+            onLogout={handleLogout}
+          />
         ) : !apiUrl ? (
           <div className="glass p-8 text-center animate-fade-in flex flex-col gap-4">
             <h2 className="text-xl font-bold">Cấu hình kết nối sheet</h2>
